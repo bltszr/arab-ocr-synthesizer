@@ -325,12 +325,12 @@ def main(args):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Synthesizer for OCR data")
   parser.add_argument("path", type=str,
-                      help="Path to pdf file")
+                      help="Path to pdf or txt file")
   parser.add_argument("--start-page", type=int,
                       help="Starter page to parse",
                       default=0)
   parser.add_argument("--end-page", type=int,
-                      help="Starter page to parse",
+                      help="Starter page to parse, will be ignored if file is txt",
                       default=math.inf)
   parser.add_argument("--default-font", type=str,
                       help="Override default font",
