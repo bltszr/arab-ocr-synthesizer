@@ -59,10 +59,11 @@ def save(img, bboxes, dest_folder, page_number):
 
 def create_page(page_width, page_height, bg=None):
   if bg != None:
-    img = Image.open(random.choice(glob.glob(bg)))\
-               .resize((page_width, page_height))
+    img = Image.open(random.choice(glob.glob(os.path.join(bg, '*'))))\
+               .resize((page_width, page_height))\
+               .convert("RGBA")
   else:
-    img = Image.new("RGB",
+    img = Image.new("RGBA",
                     tuple(map(int,
                               (page_width,
                                page_height))),
@@ -196,17 +197,24 @@ def process_txt(args, font):
       y = cum_spacing
       if args.warn and y > page_height:
         print(f"[WARN] Ran off page at line {line}\n")
-      draw.text((x, y), line,
-                font=font,
-                fill=(0, 0, 0),
-                direction="rtl")
+      alpha = int(random.uniform(args.min_alpha, args.max_alpha) * 255)
+      txt_im = Image.new('RGBA', img.size,
+                         (255,255,255,0))
+      txt_d = ImageDraw.Draw(txt_im)
+      txt_d.text((x, y), line,
+                 font=font,
+                 fill=(0, 0, 0, alpha),
+                 direction="rtl")
       bbox = draw.textbbox((x, y), line,
                            font=font,
                            direction="rtl")
+      img = Image.alpha_composite(img, txt_im)
       bboxes.append({"text": line,
                      "bbox": bbox})
       cum_spacing += par_spacing
   save(img, bboxes, dest_folder, page_number)
+  with open(os.path.join(dest_folder, 'config.json'), 'w') as f:
+    json.dump(vars(args), f)
 
 def process_doc(args, font_dict):
   dest_folder = to_project_dir(args.path)
@@ -292,6 +300,9 @@ def main(args):
   DEFAULT.update({"font": args.default_font,
                   "font size": Pt(args.default_font_size),
                   "spacing": Inches(args.default_spacing)})
+  if args.alpha:
+    args.min_alpha = args.alpha
+    args.max_alpha = args.alpha
   configuration = {
     'delete_harakat': False,
     'support_ligatures': True,
@@ -330,6 +341,12 @@ if __name__ == "__main__":
   parser.add_argument("--default-spacing", type=float,
                       help="Override default spacing rules",
                       default=DEFAULT['spacing'].inches)
+  parser.add_argument("--min-alpha", type=float, default=0.85,
+                      help="Minimum alpha to choose for text")
+  parser.add_argument("--max-alpha", type=float, default=1.0,
+                      help="Maximum alpha to choose for text")
+  parser.add_argument("--alpha", type=float, default=None,
+                      help="Single alpha value for all text. Overrides min-alpha and max-alpha")
   parser.add_argument("--warn", action="store_true", help="Emit warnings")
   parser.add_argument("--background", type=str, help="Path to folder of backgrounds")
   
