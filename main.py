@@ -47,7 +47,7 @@ DEFAULT = {
   "bottom margin": Inches(1),
 }
 
-to_project_dir = lambda path : f"outputs/{os.path.basename(path)}.{int(time.mktime(datetime.now().timetuple()))}.d"
+to_project_dir = lambda path : os.path.join('outputs', f"{os.path.basename(path)}.{int(time.mktime(datetime.now().timetuple()))}.d")
 
 def save(img, bboxes, dest_folder, page_number):
   img_filename = os.path.join(dest_folder,  f'{page_number}.png')
