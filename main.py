@@ -298,7 +298,7 @@ def process_doc(args, font_dict):
 
 def main(args):
   global backgrounds
-  backgrounds = glob.glob(os.path.join(args.background, '*'))
+  backgrounds = glob.glob(os.path.join(args.background, 'out*.png'))
   if args.alpha:
     args.min_alpha = args.alpha
     args.max_alpha = args.alpha
