@@ -23,6 +23,8 @@ import sys
 import time
 from datetime import datetime
 
+from data_report import check_font_on_text
+
 DPI = 200
 
 to_px = lambda length, dpi=DPI : int((length.inches * dpi))
@@ -156,6 +158,12 @@ def get_indents(paragraph):
 
 
 def process_txt(args, font):
+  # check first
+  missing_chars = check_font_on_text(args.font, args.path)
+  if len(missing_chars) > 0:
+    raise ValueError(f'Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\"')
+    
+  
   dest_folder = to_project_dir(args.path)
   os.makedirs(dest_folder, exist_ok=True)
   page_width, page_height,\
