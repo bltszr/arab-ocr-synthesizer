@@ -177,6 +177,7 @@ def process_txt(args, font):
                           * line_spacing_rules[DEFAULT['spacing-rule']]))
   right_indent = 0
   left_indent = 0
+  
   for j, run in enumerate(open(args.path, 'r')):
     if page_number > args.end_page:
       break
@@ -340,7 +341,7 @@ def main(args):
           
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Synthesizer for OCR data")
-  parser.add_argument("path", type=str, help="Path to pdf or txt file")
+  parser.add_argument("path", type=str, help="Path to docx or txt file")
   parser.add_argument("--start-page", type=int, help="Starter page to parse",default=0)
   parser.add_argument("--end-page", type=int,
                       help="Starter page to parse, will be ignored if file is txt", default=math.inf)
