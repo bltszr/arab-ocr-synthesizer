@@ -19,11 +19,16 @@ def generate(path, iters):
     docs = glob.glob(os.path.join(path, '**/*.txt'), recursive=True)
   
   for iter in range(iters):
+
     font_size = random.choice(font_sizes)
     spacing = random.uniform(0.8, 1.5) * docx.shared.Pt(font_size).inches
-    cmd = f"./main.py \"{random.choice(docs)}\" --font-size {random.choice(font_sizes)} --background {random.choice(backgrounds)} --font \"{random.choice(fonts)}\" --spacing {spacing} --min-alpha {random.uniform(0.5, 0.8)} --margin {random.uniform(0.6, 0.8)}"
-    # print(cmd)
-    # print(spacing)
+    doc = random.choice(docs)
+    background = random.choice(backgrounds)
+    font = random.choice(fonts)
+    min_alpha = random.uniform(0.5, 0.8)
+    margin = random.uniform(0.6, 0.8)
+    
+    cmd = f"./main.py \"{doc}\" --font-size {font_size} --background \"{backgrounds}\" --font \"{font}\" --spacing {spacing} --min-alpha {min_alpha} --margin {margin}"
     ret = os.system(cmd)
     if ret == signal.SIGINT:
       raise KeyboardInterrupt
