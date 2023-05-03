@@ -156,7 +156,6 @@ def get_indents(paragraph):
     right_indent = Inches(0)
   return right_indent, left_indent
 
-
 def process_txt(args, font):
   # check first
   missing_chars = check_font_on_text(args.font, args.path)
@@ -185,7 +184,12 @@ def process_txt(args, font):
                           * line_spacing_rules[DEFAULT['spacing-rule']]))
   right_indent = 0
   left_indent = 0
-  
+  configuration = {
+    'delete_harakat': False,
+    'support_ligatures': True,
+    'RIAL SIGN': True,  # Replace ر ي ا ل with ﷼
+  }
+  reshaper = ArabicReshaper(configuration=configuration)
   for j, run in enumerate(open(args.path, 'r')):
     if page_number > args.end_page:
       break
@@ -197,6 +201,7 @@ def process_txt(args, font):
                             - right_indent \
                             - left_indent)
     for k, line in enumerate(text):
+      if line 
       # middle part = page_width - right_indent - left_indent - right_margin - left_margin
       # x = left_margin + left_indent + (middle part - length of line)
       # x = page_width - right_indent - right_margin - length of line
@@ -213,6 +218,10 @@ def process_txt(args, font):
       y = cum_spacing
       if args.warn and y > page_height:
         print(f"[WARN] Ran off page at line {line}\n")
+      # line = reshaper.reshape(get_display(line))
+      
+      line = u"\u200f" + line.replace('﴾', '(').replace('﴿', ')')
+      
       alpha = int(random.uniform(args.min_alpha, args.max_alpha) * 255)
       txt_im = Image.new('RGBA', img.size,
                          (255,255,255,0))
@@ -278,6 +287,8 @@ def process_doc(args, font_dict):
                               - right_indent \
                               - left_indent)
       for k, line in enumerate(text):
+        if line == '':
+          continue
         # middle part = page_width - right_indent - left_indent - right_margin - left_margin
         # x = left_margin + left_indent + (middle part - length of line)
         # x = page_width - right_indent - right_margin - length of line
@@ -327,16 +338,10 @@ def main(args):
                   "page-width": Mm(args.page_width),
                   "page-height": Mm(args.page_height),
                   "spacing-rule": line_spacing_map[args.spacing_rule]})
-  configuration = {
-    'delete_harakat': False,
-    'support_ligatures': True,
-    'RIAL SIGN': True,  # Replace ر ي ا ل with ﷼
-  }
   
   with open('fonts') as fp:
     font_dict = json.load(fp)
-    
-  reshaper = ArabicReshaper(configuration=configuration)
+
   if args.path.endswith(".docx"):
     process_doc(args, font_dict)
   elif args.path.endswith(".txt"):

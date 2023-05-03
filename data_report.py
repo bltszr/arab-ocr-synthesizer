@@ -21,6 +21,9 @@ class ConfigNotFoundException(Exception):
     "Raised when a config file cannot be found for a specific dataset"
     pass
 
+class FontNotFoundException(Exception):
+    "Raised when a config file cannot be found for a specific dataset"
+    pass
 
 def check_font_on_text(font_path, source_text_path):
   missing_chars = []
@@ -52,17 +55,19 @@ def check_dir(dir_path):
     font_path = config['font']
   except KeyError:
     font_path = config['default_font']
-
   
   if not os.path.exists(font_path):
     if 'NotoNaskh' in font_path:
       font_path = 'fonts.d/Noto_Naskh_Arabic/NotoNaskhArabic-VariableFont_wght.ttf'
       config['font'] = font_path
       resave = True
-    if 'MarkaziText' in font_path:
+    elif 'MarkaziText' in font_path:
       font_path = 'fonts.d/Markazi_Text/MarkaziText-VariableFont_wght.ttf'
       config['font'] = font_path
       resave = True
+    else:
+      raise FontNotFoundException
+      
   if resave:
     with open(config_path, 'w') as f:
       json.dump(config, f)
@@ -86,6 +91,8 @@ if __name__ == '__main__':
           'missing': list(missing_chars)
         })
     except ConfigNotFoundException:
+      report['marked'].append(dir_)
+    except FontNotFoundException:
       report['marked'].append(dir_)
     print(f'Done with "{dir_}"')
     

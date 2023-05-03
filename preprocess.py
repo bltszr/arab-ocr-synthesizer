@@ -26,17 +26,17 @@ replacements = [
   (r'[\-—=:\u00A0⇒]', ' '),
   
   # corrective assumption
-  (r"(^|\n)َ", ''),
-  (r"(^|\n)ِ", ''),
-  (r"(^|\n)ُ", ''),
-  (r"\b[ء\u0674]\b", ''),
-  
+  (r"(^|\n)[\u064e\u064f\u0650\u064b\u064c\u064d\u0674]", ''),
+  (r"\b[\u0621\u0674]\b", ''),
+  # (r"\W{4,}", ''),
+  (r'(?<![«»\n])\W{4,}(?![«»\n])', ''),
   (r'\n+', '\n'),
   (r' +', ' '),
 
   # delete long strings of punctuation
   (r'\n[،۔«»﴾﴿ ]+\n', ''),
 ]
+
 def preprocess_text(text):
   lines = []
   for line in text.split('\n'):
