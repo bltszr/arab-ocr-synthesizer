@@ -201,7 +201,7 @@ def process_txt(args, font):
                             - right_indent \
                             - left_indent)
     for k, line in enumerate(text):
-      if line 
+      # if line 
       # middle part = page_width - right_indent - left_indent - right_margin - left_margin
       # x = left_margin + left_indent + (middle part - length of line)
       # x = page_width - right_indent - right_margin - length of line
