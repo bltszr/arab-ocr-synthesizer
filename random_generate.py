@@ -12,7 +12,7 @@ font_sizes = range(17, 30)
 
 def generate(path, iters, bg_path, fonts,
              min_spacing, max_spacing):
-  if path.endswith('.txt'):
+  if path.endswith('.txt') or path.endswith('.chars'):
     docs = [path]
   elif os.path.isdir(path):
     docs = glob.glob(os.path.join(path, '**/*.txt'), recursive=True)

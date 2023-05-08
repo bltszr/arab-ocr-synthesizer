@@ -25,6 +25,8 @@ from datetime import datetime
 
 from data_report import check_font_on_text
 
+tatwil = 'ـ'
+
 DPI = 200
 
 to_px = lambda length, dpi=DPI : int((length.inches * dpi))
@@ -66,7 +68,7 @@ def save(img, bboxes, dest_folder, page_number):
   img.save(img_filename)
   with open(json_filename, 'w') as f:
     json.dump(bboxes, f)
-  print(f'Saved \'{img_filename}\'')
+    print(f'Saved \'{img_filename}\'')
 
 
 def create_page(page_width, page_height, bg=False):
@@ -116,7 +118,7 @@ def get_font_name(style):
       return None
   else:
     return style.font.name
-      
+  
 def get_font(run, font_dict):
   # Get the font size of the run
   try:
@@ -161,7 +163,7 @@ def process_txt(args, font):
   missing_chars = check_font_on_text(args.font, args.path)
   if len(missing_chars) > 0:
     raise ValueError(f'Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\"')
-    
+  
   
   dest_folder = to_project_dir(args.path)
   os.makedirs(dest_folder, exist_ok=True)
@@ -218,7 +220,7 @@ def process_txt(args, font):
       y = cum_spacing
       if args.warn and y > page_height:
         print(f"[WARN] Ran off page at line {line}\n")
-      # line = reshaper.reshape(get_display(line))
+        # line = reshaper.reshape(get_display(line))
       
       line = u"\u200f" + line.replace('﴾', '(').replace('﴿', ')')
       
@@ -237,7 +239,103 @@ def process_txt(args, font):
       bboxes.append({"text": line,
                      "bbox": bbox})
       cum_spacing += par_spacing
-  save(img, bboxes, dest_folder, page_number)
+      save(img, bboxes, dest_folder, page_number)
+  with open(os.path.join(dest_folder, 'config.json'), 'w') as f:
+    json.dump(vars(args), f)
+
+def process_chars(args, font):
+  # check first
+  missing_chars = check_font_on_text(args.font, args.path)
+  if len(missing_chars) > 0:
+    raise ValueError(f'Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\"')
+  
+  
+  dest_folder = to_project_dir(args.path)
+  os.makedirs(dest_folder, exist_ok=True)
+  page_width, page_height,\
+    left_margin, right_margin,\
+    top_margin, bottom_margin = map(to_px,
+                                    (DEFAULT['page-width'],
+                                     DEFAULT['page-height'],
+                                     DEFAULT['left-margin'],
+                                     DEFAULT['right-margin'],
+                                     DEFAULT['top-margin'],
+                                     DEFAULT['bottom-margin']))
+  page_number = 1
+  # Iterate over each paragraph in the document
+  img, draw, bboxes = create_page(page_width, page_height, args.background)
+  
+  cum_spacing = top_margin
+  # Extract the text and style of the paragraph
+  par_spacing = to_px(Emu(DEFAULT['spacing'] \
+                          * line_spacing_rules[DEFAULT['spacing-rule']]))
+  right_indent = 0
+  left_indent = 0
+  configuration = {
+    'delete_harakat': False,
+    'support_ligatures': True,
+    'RIAL SIGN': True,  # Replace ر ي ا ل with ﷼
+  }
+  reshaper = ArabicReshaper(configuration=configuration)
+  for j, run in enumerate(open(args.path, 'r')):
+    if page_number > args.end_page:
+      break
+    text = get_wrapped_text(run,
+                            font,
+                            page_width \
+                            - right_margin \
+                            - left_margin \
+                            - right_indent \
+                            - left_indent)
+    for k, line in enumerate(text):
+      x = page_width \
+        - right_margin - right_indent \
+        - font.getlength(line)
+      if cum_spacing + font.size > page_height - bottom_margin:
+        # save(img, bboxes, dest_folder, page_number)
+        img, draw, bboxes = create_page(page_width, page_height, args.background)
+        cum_spacing = top_margin
+        page_number += 1
+      if page_number > args.end_page:
+        break
+      y = cum_spacing
+      if args.warn and y > page_height:
+        print(f"[WARN] Ran off page at line {line}\n")
+        # line = reshaper.reshape(get_display(line))
+      
+      line = u"\u200f" + line.replace('﴾', '(').replace('﴿', ')')
+      
+      alpha = int(random.uniform(args.min_alpha, args.max_alpha) * 255)
+      txt_im = Image.new('RGBA', img.size,
+                         (255,255,255,0))
+      txt_d = ImageDraw.Draw(txt_im)
+      txt_d.text((x, y), line,
+                 font=font,
+                 fill=(0, 0, 0, alpha),
+                 direction="rtl")
+      left, top, right, bottom = draw.textbbox((x, y), line,
+                                               font=font,
+                                               direction="rtl")
+      if tatwil in line:
+        left_t, _, right_t, _ = draw.textbbox((x, y), tatwil,
+                                              font=font,
+                                              direction="rtl")
+        tatwil_width = right_t - left_t
+        if line.startswith(tatwil):
+          right -= tatwil_width
+        if line.endswith(tatwil):
+          left += tatwil_width
+      char_path = os.path.join(dest_folder,
+                               line.replace(tatwil, '').replace('\u200f', ''))
+      os.makedirs(char_path, exist_ok=True)
+      img = Image.alpha_composite(img, txt_im)
+      img.crop((left, top, right, bottom))\
+         .save(os.path.join(char_path,
+                            f'{datetime.now()}.png'))
+      # bboxes.append({"text": line,
+      #                "bbox": (left, top, right, bottom)})
+      cum_spacing += par_spacing
+      # save(img, bboxes, dest_folder, page_number)
   with open(os.path.join(dest_folder, 'config.json'), 'w') as f:
     json.dump(vars(args), f)
 
@@ -305,17 +403,93 @@ def process_doc(args, font_dict):
         y = cum_spacing
         if args.warn and y > page_height:
           print(f"[WARN] Ran off page at line {line}\n")
-        draw.text((x, y), line,
-                  font=font,
-                  fill=(0, 0, 0),
-                  direction="rtl")
-        bbox = draw.textbbox((x, y), line,
-                             font=font,
-                             direction="rtl")
-        bboxes.append({"text": line,
-                       "bbox": bbox})
-        cum_spacing += par_spacing
+          draw.text((x, y), line,
+                    font=font,
+                    fill=(0, 0, 0),
+                    direction="rtl")
+          bbox = draw.textbbox((x, y), line,
+                               font=font,
+                               direction="rtl")
+          bboxes.append({"text": line,
+                         "bbox": bbox})
+          cum_spacing += par_spacing
 
+
+def process_doc(args, font_dict):
+  dest_folder = to_project_dir(args.path)
+  doc = docx.Document(doc_path)
+  os.makedirs(dest_folder, exist_ok=True)
+
+  section = doc.sections[0]
+  page_width, page_height,\
+    left_margin, right_margin,\
+    top_margin, bottom_margin = map(to_px,
+                                    (section.page_width,
+                                     section.page_height,
+                                     section.left_margin,
+                                     section.right_margin,
+                                     section.top_margin,
+                                     section.bottom_margin))
+  
+  page_number = 1
+  text_page_height = page_height - top_margin - bottom_margin
+  # Iterate over each paragraph in the document
+  img, draw, bboxes = create_page(page_width, page_height, bg)
+  cum_spacing = top_margin
+  for i, paragraph in enumerate(doc.paragraphs):
+    if page_number > args.end_page:
+      break 
+    # Extract the text and style of the paragraph
+    right_indent, left_indent = get_indents(paragraph)
+    style = paragraph.style.name
+    par_spacing = to_px(get_spacing(paragraph))
+    for j, run in enumerate(paragraph.runs):
+      
+      if run._element.xpath('w:lastRenderedPageBreak'):
+        save(img, bboxes, dest_folder, page_number)
+        img, draw, bboxes = create_page(page_width, page_height)
+        cum_spacing = top_margin
+        page_number += 1
+      if page_number > args.end_page:
+        break
+      font = get_font(run, font_dict)
+      text = get_wrapped_text(run.text,
+                              font,
+                              page_width \
+                              - right_margin \
+                              - left_margin \
+                              - right_indent \
+                              - left_indent)
+      for k, line in enumerate(text):
+        if line == '':
+          continue
+        # middle part = page_width - right_indent - left_indent - right_margin - left_margin
+        # x = left_margin + left_indent + (middle part - length of line)
+        # x = page_width - right_indent - right_margin - length of line
+        x = page_width \
+          - right_margin - right_indent \
+          - font.getlength(line)
+        if cum_spacing + font.size > text_page_height:
+          save(img, bboxes, dest_folder, page_number)
+          img, draw, bboxes = create_page(page_width, page_height)
+          cum_spacing = top_margin
+          page_number += 1
+        if page_number > args.end_page:
+          break
+        y = cum_spacing
+        if args.warn and y > page_height:
+          print(f"[WARN] Ran off page at line {line}\n")
+          draw.text((x, y), line,
+                    font=font,
+                    fill=(0, 0, 0),
+                    direction="rtl")
+          bbox = draw.textbbox((x, y), line,
+                               font=font,
+                               direction="rtl")
+          bboxes.append({"text": line,
+                         "bbox": bbox})
+          cum_spacing += par_spacing
+          
 def main(args):
   global backgrounds
   backgrounds = glob.glob(os.path.join(args.background, 'out*.png'))
@@ -344,14 +518,18 @@ def main(args):
 
   if args.path.endswith(".docx"):
     process_doc(args, font_dict)
-  elif args.path.endswith(".txt"):
+  elif args.path.endswith(".txt") or args.path.endswith('.chars'):
     if os.path.exists(args.font):
       fontpath = args.font
     else:
       fontpath = font_dict[args.font]
-    process_txt(args, ImageFont.truetype(fontpath,
-                                         size=to_px(DEFAULT['font-size'])))
-          
+    if args.path.endswith('.txt'):
+      process_txt(args, ImageFont.truetype(fontpath,
+                                           size=to_px(DEFAULT['font-size'])))
+    elif args.path.endswith('.chars'):
+      process_chars(args, ImageFont.truetype(fontpath,
+                                           size=to_px(DEFAULT['font-size'])))
+      
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Synthesizer for OCR data")
   parser.add_argument("path", type=str, help="Path to docx or txt file")
