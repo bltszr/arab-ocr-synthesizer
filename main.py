@@ -523,12 +523,12 @@ def main(args):
       fontpath = args.font
     else:
       fontpath = font_dict[args.font]
+    assert os.path.exists(fontpath)
+    font = ImageFont.truetype(fontpath, size=to_px(DEFAULT['font-size']))
     if args.path.endswith('.txt'):
-      process_txt(args, ImageFont.truetype(fontpath,
-                                           size=to_px(DEFAULT['font-size'])))
+      process_txt(args, font)
     elif args.path.endswith('.chars'):
-      process_chars(args, ImageFont.truetype(fontpath,
-                                           size=to_px(DEFAULT['font-size'])))
+      process_chars(args, font)
       
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Synthesizer for OCR data")
