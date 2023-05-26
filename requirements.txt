@@ -8,10 +8,12 @@ comm==0.1.2
 contextlib2==21.6.0
 creativeai==0.1.1
 cryptography==39.0.1
+ctcdecode==1.0.3
 debugpy==1.6.6
 decorator==5.1.1
 docopt==0.6.2
 executing==1.2.0
+fonttools==4.39.2
 idna==3.4
 importlib-metadata==6.0.0
 ipykernel==6.21.2
@@ -58,7 +60,7 @@ stack-data==0.6.2
 texturize==0.12
 torch==1.13.1
 torchvision==0.14.1
-tornado==6.2
+tornado==6.3.2
 traitlets==5.9.0
 typing-extensions==4.5.0
 uno==0.3.3
