@@ -25,16 +25,23 @@ class FontNotFoundException(Exception):
     "Raised when a config file cannot be found for a specific dataset"
     pass
 
-def check_font_on_text(font_path, source_text_path):
+
+def check_font_on_text(font, text):
   missing_chars = []
-  font = TTFont(font_path)
-  source_alphabet = set(open(source_text_path, encoding='utf-8').read())
+  source_alphabet = set(text)
   for char in source_alphabet:
     if has_glyph(font, char) or char == '\n':
       continue
     else:
       missing_chars.append(char)
   return missing_chars
+
+def path2font(font_path):
+  return TTFont(font_path)
+def check_font_on_text_file(font_path, source_text_path):
+  font = path2font
+  text = open(source_text_path, encoding='utf-8').read()
+  return check_font_on_text(font, text)
 
 def check_dir(dir_path):
   try:

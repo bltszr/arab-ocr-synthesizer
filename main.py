@@ -19,11 +19,13 @@ import json
 import random
 import glob
 import sys
+import shutil
 
 import time
 from datetime import datetime
 
-from data_report import check_font_on_text
+from data_report import check_font_on_text, path2font
+from util import real_preprocess, render_preprocess
 
 tatwil = 'ـ'
 
@@ -60,14 +62,14 @@ DEFAULT = {
 
 backrounds = []
 
-to_project_dir = lambda path : os.path.join('outputs', f"{os.path.basename(path)}.{int(time.mktime(datetime.now().timetuple()))}.d")
+to_project_dir = lambda path : os.path.join('outputs-2', f"{os.path.basename(path)}.{datetime.now().timestamp()}.d")
 
 def save(img, bboxes, dest_folder, page_number):
   img_filename = os.path.join(dest_folder,  f'{page_number}.png')
   json_filename = os.path.join(dest_folder,  f'{page_number}.json')
   img.save(img_filename)
   with open(json_filename, 'w') as f:
-    json.dump(bboxes, f)
+    json.dump(bboxes, f, ensure_ascii=False)
     print(f'Saved \'{img_filename}\'')
 
 
@@ -159,12 +161,7 @@ def get_indents(paragraph):
   return right_indent, left_indent
 
 def process_txt(args, font):
-  # check first
-  missing_chars = check_font_on_text(args.font, args.path)
-  if len(missing_chars) > 0:
-    raise ValueError(f'Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\"')
-  
-  
+  font_for_checking = path2font(args.font)
   dest_folder = to_project_dir(args.path)
   os.makedirs(dest_folder, exist_ok=True)
   page_width, page_height,\
@@ -176,7 +173,7 @@ def process_txt(args, font):
                                      DEFAULT['right-margin'],
                                      DEFAULT['top-margin'],
                                      DEFAULT['bottom-margin']))
-  page_number = 1
+  page_number = 0
   # Iterate over each paragraph in the document
   img, draw, bboxes = create_page(page_width, page_height, args.background)
   
@@ -186,12 +183,6 @@ def process_txt(args, font):
                           * line_spacing_rules[DEFAULT['spacing-rule']]))
   right_indent = 0
   left_indent = 0
-  configuration = {
-    'delete_harakat': False,
-    'support_ligatures': True,
-    'RIAL SIGN': True,  # Replace ر ي ا ل with ﷼
-  }
-  reshaper = ArabicReshaper(configuration=configuration)
   for j, run in enumerate(open(args.path, 'r')):
     if page_number > args.end_page:
       break
@@ -211,6 +202,8 @@ def process_txt(args, font):
         - right_margin - right_indent \
         - font.getlength(line)
       if cum_spacing + font.size > page_height - bottom_margin:
+        if page_number == 0:
+          page_number += 1
         save(img, bboxes, dest_folder, page_number)
         img, draw, bboxes = create_page(page_width, page_height, args.background)
         cum_spacing = top_margin
@@ -220,28 +213,39 @@ def process_txt(args, font):
       y = cum_spacing
       if args.warn and y > page_height:
         print(f"[WARN] Ran off page at line {line}\n")
-        # line = reshaper.reshape(get_display(line))
+        continue
       
-      line = u"\u200f" + line.replace('﴾', '(').replace('﴿', ')')
-      
+      line = real_preprocess(line)
+      line_to_render = render_preprocess(line)
+      # check first
+      missing_chars = check_font_on_text(font_for_checking, line)
+      if len(missing_chars) > 0:
+        print(f'[WARN] Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\". Skipping line...')
+        continue
+      if len(line) == 0:
+        print(f"[WARN] Empty line. Skipping...")
+        continue
       alpha = int(random.uniform(args.min_alpha, args.max_alpha) * 255)
       txt_im = Image.new('RGBA', img.size,
                          (255,255,255,0))
       txt_d = ImageDraw.Draw(txt_im)
-      txt_d.text((x, y), line,
+      txt_d.text((x, y), line_to_render,
                  font=font,
                  fill=(0, 0, 0, alpha),
                  direction="rtl")
-      bbox = draw.textbbox((x, y), line,
+      bbox = draw.textbbox((x, y), line_to_render,
                            font=font,
                            direction="rtl")
       img = Image.alpha_composite(img, txt_im)
       bboxes.append({"text": line,
                      "bbox": bbox})
       cum_spacing += par_spacing
-      save(img, bboxes, dest_folder, page_number)
-  with open(os.path.join(dest_folder, 'config.json'), 'w') as f:
-    json.dump(vars(args), f)
+      # save(img, bboxes, dest_folder, page_number)
+  if page_number > 0:
+    with open(os.path.join(dest_folder, 'config.json'), 'w') as f:
+      json.dump(vars(args), f)
+  else:
+    shutil.rmtree(dest_folder)
 
 def process_chars(args, font):
   # check first
