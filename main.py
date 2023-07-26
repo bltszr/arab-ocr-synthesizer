@@ -27,12 +27,12 @@ from datetime import datetime
 from data_report import check_font_on_text, path2font
 from util import real_preprocess, render_preprocess
 
+from functools import partial
+
 tatwil = 'ـ'
 
-DPI = 200
-
-to_px = lambda length, dpi=DPI : int((length.inches * dpi))
-from_px = lambda pxs, dpi=DPI : Inches(pxs / dpi)
+to_px = lambda length, dpi : int((length.inches * dpi))
+from_px = lambda pxs, dpi : Inches(pxs / dpi)
 
 line_spacing_rules = {
   docx.enum.text.WD_LINE_SPACING.ONE_POINT_FIVE: 1.5,
@@ -62,15 +62,16 @@ DEFAULT = {
 
 backrounds = []
 
-to_project_dir = lambda path : os.path.join('outputs-2', f"{os.path.basename(path)}.{datetime.now().timestamp()}.d")
+to_project_dir = lambda path, output_dir : os.path.join(output_dir, f"{os.path.basename(path)}.{datetime.now().timestamp()}.d")
 
-def save(img, bboxes, dest_folder, page_number):
+def save(img, bboxes, dest_folder, page_number, verbose=False):
   img_filename = os.path.join(dest_folder,  f'{page_number}.png')
   json_filename = os.path.join(dest_folder,  f'{page_number}.json')
   img.save(img_filename)
   with open(json_filename, 'w') as f:
     json.dump(bboxes, f, ensure_ascii=False)
-    print(f'Saved \'{img_filename}\'')
+    if verbose:
+      print(f'[INFO] Saved \'{img_filename}\'')
 
 
 def create_page(page_width, page_height, bg=False):
@@ -121,7 +122,7 @@ def get_font_name(style):
   else:
     return style.font.name
   
-def get_font(run, font_dict):
+def get_font(run, font_dict, dpi):
   # Get the font size of the run
   try:
     run_font_size = get_font_size(run.style)
@@ -129,18 +130,18 @@ def get_font(run, font_dict):
     run_font_size = DEFAULT["font-size"]
 
   try:
-    run_font_name = get_font_name(to_px(run.style))
+    run_font_name = get_font_name(to_px(run.style, dpi))
   except (TypeError, AttributeError):
     run_font_name = DEFAULT["font"]
     
   return ImageFont.truetype(font_dict[run_font_name],
-                            to_px(run_font_size))
+                            to_px(run_font_size, dpi))
 
 def get_spacing(paragraph):
   try:
     if type(paragraph.paragraph_format.line_spacing) == float:
       try:
-        spacing = from_px(get_font_size(paragraph.style) * paragraph.paragraph_format.line_spacing)
+        spacing = from_px(get_font_size(paragraph.style) * paragraph.paragraph_format.line_spacing, dpi)
       except (TypeError, AttributeError, IndexError) as e:
         spacing = Emu(DEFAULT["spacing"] * DEFAULT["spacing-rule"])
     else:
@@ -162,11 +163,11 @@ def get_indents(paragraph):
 
 def process_txt(args, font):
   font_for_checking = path2font(args.font)
-  dest_folder = to_project_dir(args.path)
+  dest_folder = to_project_dir(args.path, args.output_dir)
   os.makedirs(dest_folder, exist_ok=True)
   page_width, page_height,\
     left_margin, right_margin,\
-    top_margin, bottom_margin = map(to_px,
+    top_margin, bottom_margin = map(partial(to_px, dpi=args.dpi),
                                     (DEFAULT['page-width'],
                                      DEFAULT['page-height'],
                                      DEFAULT['left-margin'],
@@ -180,12 +181,15 @@ def process_txt(args, font):
   cum_spacing = top_margin
   # Extract the text and style of the paragraph
   par_spacing = to_px(Emu(DEFAULT['spacing'] \
-                          * line_spacing_rules[DEFAULT['spacing-rule']]))
+                          * line_spacing_rules[DEFAULT['spacing-rule']]),
+                      args.dpi)
   right_indent = 0
   left_indent = 0
   for j, run in enumerate(open(args.path, 'r')):
     if page_number > args.end_page:
       break
+    if args.scriptio_continuo:
+      run = run.replace(' ', '‌')
     text = get_wrapped_text(run,
                             font,
                             page_width \
@@ -204,15 +208,16 @@ def process_txt(args, font):
       if cum_spacing + font.size > page_height - bottom_margin:
         if page_number == 0:
           page_number += 1
-        save(img, bboxes, dest_folder, page_number)
+        save(img, bboxes, dest_folder, page_number, args.verbose)
         img, draw, bboxes = create_page(page_width, page_height, args.background)
         cum_spacing = top_margin
         page_number += 1
       if page_number > args.end_page:
         break
       y = cum_spacing
-      if args.warn and y > page_height:
-        print(f"[WARN] Ran off page at line {line}\n")
+      if y > page_height:
+        if args.warn:
+          print(f"[WARN] Ran off page at line {line}\n")
         continue
       
       line = real_preprocess(line)
@@ -220,10 +225,12 @@ def process_txt(args, font):
       # check first
       missing_chars = check_font_on_text(font_for_checking, line)
       if len(missing_chars) > 0:
-        print(f'[WARN] Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\". Skipping line...')
+        if args.warn:
+          print(f'[WARN] Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\". Skipping line...')
         continue
       if len(line) == 0:
-        print(f"[WARN] Empty line. Skipping...")
+        if args.warn:
+          print(f"[WARN] Empty line. Skipping...")
         continue
       alpha = int(random.uniform(args.min_alpha, args.max_alpha) * 255)
       txt_im = Image.new('RGBA', img.size,
@@ -254,11 +261,11 @@ def process_chars(args, font):
     raise ValueError(f'Font "{args.font}" missing these characters {missing_chars} present in file \"{args.path}\"')
   
   
-  dest_folder = to_project_dir(args.path)
+  dest_folder = to_project_dir(args.path, args.output_dir)
   os.makedirs(dest_folder, exist_ok=True)
   page_width, page_height,\
     left_margin, right_margin,\
-    top_margin, bottom_margin = map(to_px,
+    top_margin, bottom_margin = map(partial(to_px, dpi=args.dpi),
                                     (DEFAULT['page-width'],
                                      DEFAULT['page-height'],
                                      DEFAULT['left-margin'],
@@ -272,7 +279,8 @@ def process_chars(args, font):
   cum_spacing = top_margin
   # Extract the text and style of the paragraph
   par_spacing = to_px(Emu(DEFAULT['spacing'] \
-                          * line_spacing_rules[DEFAULT['spacing-rule']]))
+                          * line_spacing_rules[DEFAULT['spacing-rule']]).
+                      args.dpi)
   right_indent = 0
   left_indent = 0
   configuration = {
@@ -344,14 +352,14 @@ def process_chars(args, font):
     json.dump(vars(args), f)
 
 def process_doc(args, font_dict):
-  dest_folder = to_project_dir(args.path)
+  dest_folder = to_project_dir(args.path, args.output_dir)
   doc = docx.Document(doc_path)
   os.makedirs(dest_folder, exist_ok=True)
 
   section = doc.sections[0]
   page_width, page_height,\
     left_margin, right_margin,\
-    top_margin, bottom_margin = map(to_px,
+    top_margin, bottom_margin = map(partial(to_px, dpi=args.dpi),
                                     (section.page_width,
                                      section.page_height,
                                      section.left_margin,
@@ -370,7 +378,7 @@ def process_doc(args, font_dict):
     # Extract the text and style of the paragraph
     right_indent, left_indent = get_indents(paragraph)
     style = paragraph.style.name
-    par_spacing = to_px(get_spacing(paragraph))
+    par_spacing = to_px(get_spacing(paragraph), args.dpi)
     for j, run in enumerate(paragraph.runs):
       
       if run._element.xpath('w:lastRenderedPageBreak'):
@@ -405,8 +413,9 @@ def process_doc(args, font_dict):
         if page_number > args.end_page:
           break
         y = cum_spacing
-        if args.warn and y > page_height:
-          print(f"[WARN] Ran off page at line {line}\n")
+        if y > page_height:
+          if args.warn:
+            print(f"[WARN] Ran off page at line {line}\n")
           draw.text((x, y), line,
                     font=font,
                     fill=(0, 0, 0),
@@ -420,14 +429,14 @@ def process_doc(args, font_dict):
 
 
 def process_doc(args, font_dict):
-  dest_folder = to_project_dir(args.path)
+  dest_folder = to_project_dir(args.path, args.output_dir)
   doc = docx.Document(doc_path)
   os.makedirs(dest_folder, exist_ok=True)
 
   section = doc.sections[0]
   page_width, page_height,\
     left_margin, right_margin,\
-    top_margin, bottom_margin = map(to_px,
+    top_margin, bottom_margin = map(partial(to_px, dpi=args.dpi),
                                     (section.page_width,
                                      section.page_height,
                                      section.left_margin,
@@ -446,7 +455,7 @@ def process_doc(args, font_dict):
     # Extract the text and style of the paragraph
     right_indent, left_indent = get_indents(paragraph)
     style = paragraph.style.name
-    par_spacing = to_px(get_spacing(paragraph))
+    par_spacing = to_px(get_spacing(paragraph), args.dpi)
     for j, run in enumerate(paragraph.runs):
       
       if run._element.xpath('w:lastRenderedPageBreak'):
@@ -481,8 +490,9 @@ def process_doc(args, font_dict):
         if page_number > args.end_page:
           break
         y = cum_spacing
-        if args.warn and y > page_height:
-          print(f"[WARN] Ran off page at line {line}\n")
+        if y > page_height:
+          if args.warn:
+            print(f"[WARN] Ran off page at line {line}\n")
           draw.text((x, y), line,
                     font=font,
                     fill=(0, 0, 0),
@@ -519,7 +529,8 @@ def main(args):
   
   with open('fonts') as fp:
     font_dict = json.load(fp)
-
+  if args.verbose:
+    args.warn = True
   if args.path.endswith(".docx"):
     process_doc(args, font_dict)
   elif args.path.endswith(".txt") or args.path.endswith('.chars'):
@@ -528,7 +539,7 @@ def main(args):
     else:
       fontpath = font_dict[args.font]
     assert os.path.exists(fontpath)
-    font = ImageFont.truetype(fontpath, size=to_px(DEFAULT['font-size']))
+    font = ImageFont.truetype(fontpath, size=to_px(DEFAULT['font-size'], args.dpi))
     if args.path.endswith('.txt'):
       process_txt(args, font)
     elif args.path.endswith('.chars'):
@@ -548,7 +559,6 @@ if __name__ == "__main__":
   parser.add_argument("--spacing", type=float,
                       help="Override default spacing size (inches)", default=0.5)
   parser.add_argument("--spacing-rule", choices=['1.5', 'double', 'single'], default='single')
-
   
   parser.add_argument("--min-alpha", type=float, default=0.85,
                       help="Minimum alpha to choose for text")
@@ -565,8 +575,15 @@ if __name__ == "__main__":
   
   parser.add_argument("--page-width", type=float, default=210, help="Override page width (mm)",)
   parser.add_argument("--page-height", type=float, default=297, help="Override page height (mm)")
+
+  parser.add_argument("--dpi", type=int, default=200, help="Dots per inch")
+  
+  parser.add_argument("--background", type=str, help="Path to folder of backgrounds")
+
+  parser.add_argument("--output-dir", "-o", type=str, help="Path to output directory", default='outputs')
   
   parser.add_argument("--warn", action="store_true", help="Emit warnings")
-  parser.add_argument("--background", type=str, help="Path to folder of backgrounds")
+  parser.add_argument("--verbose", action="store_true", help="Set warnings and info to true")
+  parser.add_argument('--scriptio-continuo', '-sc', action='store_true', help="Replace spaces with zero-width non-joiners")
   
   main(parser.parse_args())

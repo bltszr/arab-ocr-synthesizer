@@ -10,8 +10,9 @@ reshaper = ArabicReshaper(configuration = {
     'RIAL SIGN': True,  # Replace ر ي ا ل with ﷼
   })
 
-def remove_character_blocks(s, blocks=['C', 'S']):
-    return "".join(ch for ch in s if unicodedata.category(ch)[0] not in blocks)
+def remove_character_blocks(s, blocks=['C', 'S'],
+                            exceptions=['‌']):
+    return "".join(ch for ch in s if (ch in exceptions) or (unicodedata.category(ch)[0] not in blocks))
 
 
 def real_preprocess(line):
