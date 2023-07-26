@@ -93,10 +93,11 @@ def create_page(page_width, page_height, bg=False):
 # from https://stackoverflow.com/a/67203353
 def get_wrapped_text(text: str,
                      font: ImageFont.ImageFont,
-                     line_length: int):
+                     line_length: int,
+                     delim=' '):
   lines = ['']
-  for word in text.split():
-    line = f'{lines[-1]} {word}'.strip()
+  for word in text.split(delim):
+    line = f'{lines[-1]}{delim}{word}'.strip()
     if font.getlength(line, direction="rtl") <= line_length:
       lines[-1] = line
     else:
@@ -189,14 +190,16 @@ def process_txt(args, font):
     if page_number > args.end_page:
       break
     if args.scriptio_continuo:
-      run = run.replace(' ', '‌')
+      run = run.replace(' ', "\u200c")
     text = get_wrapped_text(run,
                             font,
                             page_width \
                             - right_margin \
                             - left_margin \
                             - right_indent \
-                            - left_indent)
+                            - left_indent,
+                            delim="\u200c" if args.scriptio_continuo else' ')
+    
     for k, line in enumerate(text):
       # if line 
       # middle part = page_width - right_indent - left_indent - right_margin - left_margin
