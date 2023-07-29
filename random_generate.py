@@ -83,7 +83,7 @@ if __name__ == '__main__':
   for it in trange(0, args.iters, args.batch_size, leave=False):
     commands = [generate_command(args.path, args.output_dir, args.bg_path, args.fonts,
                                  args.min_spacing, args.max_spacing, args.min_dpi, args.max_dpi,
-                                 args.warn, args.verbose) for com in range(args.batch_size)]
+                                 args.warn, args.verbose) for com in range(min(args.iters-it, args.batch_size))]
     with Pool(processes=min(args.batch_size, cpu_count())) as pool:
       pool.map(run_command, commands)
 
