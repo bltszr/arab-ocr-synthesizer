@@ -7,22 +7,20 @@ from generators import NumberGenerator, PegonJawaGenerator
 import datetime
 
 filedir = '../sources/synthesized/'
-# file_title = 'numbers'
-file_title = 'pegon-jawa'
 os.makedirs(filedir, exist_ok=True)
 
-generator = PegonJawaGenerator()
+# generator = PegonJawaGenerator()
+# file_title = 'pegon-jawa'
+generator = NumberGenerator()
+file_title = 'numbers'
+iterations = 20
 
-
-generations = 10_000
-iterations = 100
 for it in trange(iterations, leave=False):
+  generations = random.randint(1000, 5000)
   filepath = os.path.join(filedir, f'{file_title}-{datetime.datetime.now().timestamp()}.txt')
   text = ''
   for i in trange(generations, leave=False):
-    text += generator.generate()
-    if text != generator.par_delimiter:
-      text += ' '
-  text = text.replace(' ' + generator.comma, generator.comma).replace(' ' + generator.full_stop, generator.full_stop)
+    text += generator.postprocess_word(generator.generate())
+  text = generator.postprocess_text(text)
   with open(filepath, 'w') as file:
     file.write(text)

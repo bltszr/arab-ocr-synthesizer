@@ -7,12 +7,26 @@ class Generator:
     pass
   def generate(self):
     raise NotImplementedError
+  def postprocess_text(self, text):
+    return text
+  def postprocess_word(self, word):
+    return word
 
 class NumberGenerator(Generator):
-  def __init__(self):
-    self.alphabet = list('١٢٣٤٥٦٧٨٩٠ ')
+  def __init__(self, newline_prob=0.025, space_prob=0.3):
+    self.alphabet = list('١٢٣٤٥٦٧٨٩٠')
+    self.par_delimiter = '\n'
+    self.newline_prob = newline_prob
+    self.space_prob = space_prob
+    
   def generate(self):
-    return random.choice(self.alphabet)
+    pull = random.random()
+    if pull < self.newline_prob:
+      return self.par_delimiter
+    elif pull < self.space_prob:
+      return ' '
+    else:
+      return random.choice(self.alphabet)
 
 class PegonJawaGenerator(Generator):
   sukun = 'ْ'
@@ -271,3 +285,8 @@ class PegonJawaGenerator(Generator):
       return word + self.comma
     else:
       return word
+    
+  def postprocess_text(self, text):
+    return text.replace(' ' + self.comma, self.comma).replace(' ' + self.full_stop, self.full_stop)
+  def postprocess_word(self, word):
+    return word + (' ' if word != generator.par_delimiter else '')
